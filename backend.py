@@ -6,7 +6,7 @@ from PIL import Image
 app = Flask(__name__)
 CORS(app, origins=["http://127.0.0.1:5500", "http://localhost:5500"])  # Add your frontend origin here
 
-genai.configure(api_key="AIzaSyCFNsFusJ_pnpXKhGecXBXy5g7kfgm5Y3I")
+genai.configure(api_key="NEW_API")
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
