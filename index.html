@@ -8,6 +8,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Instrument+Sans:wght@300;400;500;600&family=Fira+Code:wght@300;400&display=swap"
     rel="stylesheet">
+<<<<<<< Updated upstream
   <script type="importmap">
     {
       "imports": {
@@ -15,6 +16,8 @@
       }
     }
   </script>
+=======
+>>>>>>> Stashed changes
   <style>
     *,
     *::before,
@@ -961,7 +964,11 @@
     <div class="topbar-right">
       <div class="status-pill">
         <div class="status-dot"></div>
+<<<<<<< Updated upstream
         Gemini Vision · Active
+=======
+        Google Vision · Active
+>>>>>>> Stashed changes
       </div>
     </div>
   </div>
@@ -993,11 +1000,14 @@
       <div>
         <div class="section-label">Analysis Parameters</div>
         <div class="settings-block">
+<<<<<<< Updated upstream
           <div class="setting-row">
             <span class="setting-name">API Key</span>
             <input type="password" id="apiKeyInput" value="AIzaSyBAmNFBw5dAubeqH2kX3TWKsGCT8Fnm5hk"
               style="font-size: 11px; font-family: 'Fira Code', monospace; background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; width: 140px; color: var(--accent3);">
           </div>
+=======
+>>>>>>> Stashed changes
           <div class="setting-row"><span class="setting-name">Detection depth</span><span
               class="setting-val">comprehensive</span></div>
           <div class="setting-row"><span class="setting-name">Uncertainty flagging</span><span
@@ -1062,7 +1072,11 @@
         </div>
         <div class="stages" id="stagesContainer"></div>
         <div class="results-footer">
+<<<<<<< Updated upstream
           <span>Powered by Gemini Vision · gemini-2.5-flash</span>
+=======
+          <span>Powered by Google Vision API</span>
+>>>>>>> Stashed changes
           <div class="footer-actions">
             <button class="btn-sm" id="copyBtn">Copy JSON</button>
             <button class="btn-sm primary" id="newBtn">New Analysis</button>
@@ -1073,7 +1087,11 @@
     </div>
   </div>
 
+<<<<<<< Updated upstream
   <script type="module">
+=======
+  <script>
+>>>>>>> Stashed changes
     const fileInput = document.getElementById('fileInput');
     const uploadZone = document.getElementById('uploadZone');
     const previewContainer = document.getElementById('previewContainer');
@@ -1091,6 +1109,7 @@
     const newBtn = document.getElementById('newBtn');
     const allSteps = document.querySelectorAll('.proc-step');
 
+<<<<<<< Updated upstream
     let imageBase64 = null, imageMime = null, lastResult = null, stepTimer = null;
 
     uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
@@ -1196,23 +1215,34 @@ Analyse this image thoroughly using the 3-stage framework. Return ONLY valid JSO
       "position": "precise position in frame",
       "state": "visible condition (e.g. open, illuminated, worn) or null",
       "uncertain": false
-    }
-  ],
-  "scene": {
-    "environment": "indoor/outdoor + specific location type",
-    "lighting": "light source, quality, direction, time of day if inferable",
-    "activity": "human activities present, or 'none detected'",
-    "atmosphere": "mood, aesthetic, or emotional tone",
-    "summary": "2-3 sentence scene description integrating all observations"
-  },
-  "relationships": [
-    {
-      "type": "spatial|human-object|object-object",
-      "description": "precise, specific relationship description"
-    }
-  ]
-}`;
+=======
+    const API_KEY = 'AIzaSyBAmNFBw5dAubeqH2kX3TWKsGCT8Fnm5hk';
 
+    let imageBase64 = null, imageMime = null, lastResult = null, stepTimer = null;
+
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+    function loadFile(file) {
+      if (!file.type.startsWith('image/')) { showErr('Please select a valid image file (PNG, JPG, WEBP).'); return; }
+      imageMime = file.type;
+      const reader = new FileReader();
+      reader.onload = e => {
+        imageBase64 = e.target.result.split(',')[1];
+        previewImg.src = e.target.result;
+        previewContainer.classList.add('visible');
+        fileMeta.textContent = `${file.name} · ${(file.size / 1024).toFixed(0)} KB`;
+        analyzeBtn.disabled = false;
+        errBox.classList.remove('visible');
+        setPanel('empty');
+      };
+      reader.readAsDataURL(file);
+>>>>>>> Stashed changes
+    }
+
+<<<<<<< Updated upstream
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -1232,6 +1262,108 @@ Analyse this image thoroughly using the 3-stage framework. Return ONLY valid JSO
 
         const parsed = safeParseJSON(text);
         if (!parsed) throw new Error('Could not parse analysis response. Please try again.');
+=======
+    clearBtn.addEventListener('click', reset);
+    newBtn.addEventListener('click', reset);
+
+    function reset() {
+      imageBase64 = null; imageMime = null; lastResult = null;
+      fileInput.value = '';
+      previewImg.src = '';
+      previewContainer.classList.remove('visible');
+      analyzeBtn.disabled = true;
+      errBox.classList.remove('visible');
+      setPanel('empty');
+    }
+
+    function parseGoogleResponse(response) {
+      const objects = [];
+      if (response.objectAnnotations) {
+        response.objectAnnotations.forEach(obj => {
+          objects.push({
+            name: obj.name,
+            count: 1,
+            color: null,
+            size: obj.score > 0.8 ? 'large' : obj.score > 0.5 ? 'medium' : 'small',
+            position: 'unknown',
+            state: null,
+            uncertain: obj.score < 0.5
+          });
+        });
+      }
+      const scene = {
+        environment: 'unknown',
+        lighting: 'unknown',
+        activity: 'none detected',
+        atmosphere: 'unknown',
+        summary: 'Image analyzed using Google Vision API.'
+      };
+      if (response.labelAnnotations) {
+        const labels = response.labelAnnotations.map(l => l.description);
+        scene.summary = `Detected labels: ${labels.slice(0, 5).join(', ')}`;
+        if (labels.some(l => l.toLowerCase().includes('indoor'))) scene.environment = 'indoor';
+        else if (labels.some(l => l.toLowerCase().includes('outdoor') || l.toLowerCase().includes('nature'))) scene.environment = 'outdoor';
+      }
+      const relationships = [];
+      return { objects, scene, relationships };
+    }
+
+    function setPanel(s) {
+      emptyState.style.display = s === 'empty' ? 'flex' : 'none';
+      processingState.classList.toggle('visible', s === 'processing');
+      resultsArea.classList.toggle('visible', s === 'results');
+    }
+
+    function animateSteps() {
+      let i = 0;
+      allSteps.forEach(s => s.classList.remove('active', 'done'));
+      stepTimer = setInterval(() => {
+        if (i > 0) { allSteps[i - 1].classList.remove('active'); allSteps[i - 1].classList.add('done'); }
+        if (i < allSteps.length) { allSteps[i].classList.add('active'); i++; }
+      }, 900);
+    }
+
+    function stopSteps() {
+      clearInterval(stepTimer);
+      allSteps.forEach(s => { s.classList.add('done'); s.classList.remove('active'); });
+    }
+
+    function showErr(msg) { errBox.textContent = '⚠ ' + msg; errBox.classList.add('visible'); }
+
+    // ── ANALYZE ──
+    analyzeBtn.addEventListener('click', async () => {
+      if (!imageBase64) return;
+      analyzeBtn.disabled = true;
+      analyzeBtn.classList.add('loading');
+      errBox.classList.remove('visible');
+      setPanel('processing');
+      animateSteps();
+      const t0 = Date.now();
+
+      try {
+        const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requests: [{
+              image: { content: imageBase64 },
+              features: [
+                { type: 'OBJECT_LOCALIZATION', maxResults: 50 },
+                { type: 'LABEL_DETECTION', maxResults: 20 },
+                { type: 'IMAGE_PROPERTIES' },
+                { type: 'WEB_DETECTION', maxResults: 10 }
+              ]
+            }]
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || `API error ${res.status}`);
+
+        const response = data.responses[0];
+        if (!response) throw new Error('No response from Vision API');
+        const parsed = parseGoogleResponse(response);
+>>>>>>> Stashed changes
         lastResult = parsed;
 
         timeChip.textContent = `${((Date.now() - t0) / 1000).toFixed(1)}s`;
@@ -1248,6 +1380,7 @@ Analyse this image thoroughly using the 3-stage framework. Return ONLY valid JSO
       }
     });
 
+<<<<<<< Updated upstream
     function safeParseJSON(raw) {
       // Strip markdown code fences
       let text = raw.replace(/```json\s*/g, '').replace(/```/g, '').trim();
@@ -1342,6 +1475,38 @@ Analyse this image thoroughly using the 3-stage framework. Return ONLY valid JSO
       if (sc.activity && sc.activity !== 'none detected') pills.push({ i: '🏃', t: sc.activity });
       if (sc.atmosphere) pills.push({ i: '🎭', t: sc.atmosphere });
 
+=======
+    function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    function renderResults(data) {
+      stagesContainer.innerHTML = '';
+
+      // Stage 1: Objects
+      const objs = data.objects || [];
+      const objBody = objs.length
+        ? `<div class="obj-grid">${objs.map((o, i) => {
+          const tags = [];
+          if (o.color) tags.push(`<span class="attr-tag color">${esc(o.color)}</span>`);
+          if (o.size) tags.push(`<span class="attr-tag">${esc(o.size)}</span>`);
+          if (o.position) tags.push(`<span class="attr-tag pos">${esc(o.position)}</span>`);
+          if (o.state) tags.push(`<span class="attr-tag">${esc(o.state)}</span>`);
+          if (o.count && o.count > 1) tags.push(`<span class="attr-tag">×${o.count}</span>`);
+          if (o.uncertain) tags.push(`<span class="attr-tag unc">uncertain</span>`);
+          return `<div class="obj-card" style="animation-delay:${i * 35}ms"><div class="obj-name">${esc(o.name)}</div><div class="obj-attrs">${tags.join('')}</div></div>`;
+        }).join('')}</div>`
+        : '<p style="color:var(--muted);font-size:13px">No objects detected.</p>';
+
+      addStage('📦', 's1', 'Object Detection', 'all visible entities · attributes · positions', `${objs.length} object${objs.length !== 1 ? 's' : ''}`, objBody);
+
+      // Stage 2: Scene
+      const sc = data.scene || {};
+      const pills = [];
+      if (sc.environment) pills.push({ i: '📍', t: sc.environment });
+      if (sc.lighting) pills.push({ i: '💡', t: sc.lighting });
+      if (sc.activity && sc.activity !== 'none detected') pills.push({ i: '🏃', t: sc.activity });
+      if (sc.atmosphere) pills.push({ i: '🎭', t: sc.atmosphere });
+
+>>>>>>> Stashed changes
       const sceneBody = `
     <div class="scene-text">${esc(sc.summary || sc.environment || 'No scene description available.')}</div>
     ${pills.length ? `<div class="scene-meta-row">${pills.map(p => `<div class="scene-pill"><span>${p.i}</span><span>${esc(p.t)}</span></div>`).join('')}</div>` : ''}
