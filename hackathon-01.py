@@ -10,7 +10,7 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # PASTE YOUR GOOGLE API KEY HERE
-client = genai.Client(api_key="AIzaSyBEjOhw2PvG6XHYZE7vDdxCg1NDeVomnh8")
+client = genai.Client(api_key="Saanavi-Api")
 
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
