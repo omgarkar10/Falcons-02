@@ -17,4 +17,3 @@ export function useIsMobile() {
 
   return !!isMobile;
 }
-import * as React from "react";

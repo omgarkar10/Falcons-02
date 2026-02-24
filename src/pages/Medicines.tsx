@@ -139,4 +139,3 @@ const Medicines = () => {
 };
 
 export default Medicines;
-import { useLocation } from "react-router-dom";

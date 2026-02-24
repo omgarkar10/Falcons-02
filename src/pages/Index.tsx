@@ -155,4 +155,3 @@ const Index = () => {
 };
 
 export default Index;
-import { useState } from "react";
