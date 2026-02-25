@@ -40,6 +40,12 @@ class Medicine(db.Model):
     )
 
     def to_dict(self, include_prescriptions: bool = False) -> dict:
+        valid_slots = {"morning", "afternoon", "evening"}
+        slots: list[str] = []
+        if self.time_of_day:
+            parts = [p.strip().lower() for p in self.time_of_day.split(",") if p.strip()]
+            slots = [p for p in parts if p in valid_slots]
+
         data = {
             "id": self.id,
             "name": self.name,
@@ -50,6 +56,7 @@ class Medicine(db.Model):
             "adherence": self.adherence,
             "active": self.active,
             "timeOfDay": self.time_of_day,
+            "timeOfDaySlots": slots,
             "createdAt": self.created_at.isoformat(),
         }
         if include_prescriptions:

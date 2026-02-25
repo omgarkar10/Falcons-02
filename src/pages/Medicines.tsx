@@ -3,16 +3,9 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +26,7 @@ type Medicine = {
   adherence: number;
   active: boolean;
   timeOfDay?: "morning" | "afternoon" | "evening" | "unscheduled";
+  timeOfDaySlots?: ("morning" | "afternoon" | "evening")[];
   createdAt?: string;
   prescriptions?: Prescription[];
 };
@@ -58,11 +52,9 @@ const Medicines = () => {
   const [form, setForm] = useState({
     name: "",
     dosage: "",
-    frequency: "",
     duration: "",
     doctor: "",
-    adherence: 0,
-    timeOfDay: "unscheduled" as "morning" | "afternoon" | "evening" | "unscheduled",
+    timeOfDaySlots: [] as ("morning" | "afternoon" | "evening")[],
   });
 
   const fetchMedicines = async () => {
@@ -94,8 +86,20 @@ const Medicines = () => {
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({
       ...prev,
-      [field]: field === "adherence" ? Number(value) || 0 : value,
+      [field]: value,
     }));
+  };
+
+  const toggleTimeSlot = (slot: "morning" | "afternoon" | "evening") => {
+    setForm((prev) => {
+      const exists = prev.timeOfDaySlots.includes(slot);
+      return {
+        ...prev,
+        timeOfDaySlots: exists
+          ? prev.timeOfDaySlots.filter((s) => s !== slot)
+          : [...prev.timeOfDaySlots, slot],
+      };
+    });
   };
 
   const handleAddMedicine = async () => {
@@ -107,8 +111,11 @@ const Medicines = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...form,
-          adherence: Math.max(0, Math.min(100, form.adherence)),
+          name: form.name,
+          dosage: form.dosage,
+          duration: form.duration,
+          doctor: form.doctor,
+          timeOfDaySlots: form.timeOfDaySlots,
           active: true,
         }),
       });
@@ -137,11 +144,9 @@ const Medicines = () => {
       setForm({
         name: "",
         dosage: "",
-        frequency: "",
         duration: "",
         doctor: "",
-        adherence: 0,
-        timeOfDay: "unscheduled",
+        timeOfDaySlots: [],
       });
       setPrescriptionFile(null);
       setIsAddOpen(false);
@@ -186,9 +191,25 @@ const Medicines = () => {
   const activeMedicines = medicines.filter((m) => m.active);
   const pastMedicines = medicines.filter((m) => !m.active);
 
-  const morningMeds = activeMedicines.filter((m) => m.timeOfDay === "morning");
-  const afternoonMeds = activeMedicines.filter((m) => m.timeOfDay === "afternoon");
-  const eveningMeds = activeMedicines.filter((m) => m.timeOfDay === "evening");
+  const getSlotsForMed = (med: Medicine) => {
+    if (med.timeOfDaySlots && med.timeOfDaySlots.length > 0) {
+      return med.timeOfDaySlots;
+    }
+    if (med.timeOfDay && med.timeOfDay !== "unscheduled") {
+      return [med.timeOfDay];
+    }
+    return [];
+  };
+
+  const morningMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("morning"),
+  );
+  const afternoonMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("afternoon"),
+  );
+  const eveningMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("evening"),
+  );
 
   return (
     <div className="space-y-6">
@@ -234,15 +255,6 @@ const Medicines = () => {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="frequency">Frequency</Label>
-                <Input
-                  id="frequency"
-                  value={form.frequency}
-                  onChange={(e) => handleChange("frequency", e.target.value)}
-                  placeholder="3x daily"
-                />
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="duration">Duration</Label>
                 <Input
                   id="duration"
@@ -252,26 +264,30 @@ const Medicines = () => {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="timeOfDay">Time of day</Label>
-                <Select
-                  value={form.timeOfDay}
-                  onValueChange={(value) =>
-                    handleChange(
-                      "timeOfDay",
-                      value as "morning" | "afternoon" | "evening" | "unscheduled",
-                    )
-                  }
-                >
-                  <SelectTrigger id="timeOfDay">
-                    <SelectValue placeholder="Select time of day" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unscheduled">Unscheduled</SelectItem>
-                    <SelectItem value="morning">Morning</SelectItem>
-                    <SelectItem value="afternoon">Afternoon</SelectItem>
-                    <SelectItem value="evening">Evening</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Time of day</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("morning")}
+                      onCheckedChange={() => toggleTimeSlot("morning")}
+                    />
+                    <span>Morning</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("afternoon")}
+                      onCheckedChange={() => toggleTimeSlot("afternoon")}
+                    />
+                    <span>Afternoon</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("evening")}
+                      onCheckedChange={() => toggleTimeSlot("evening")}
+                    />
+                    <span>Evening</span>
+                  </label>
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="doctor">Prescribing Doctor</Label>
@@ -280,17 +296,6 @@ const Medicines = () => {
                   value={form.doctor}
                   onChange={(e) => handleChange("doctor", e.target.value)}
                   placeholder="Dr. Smith"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="adherence">Adherence (%)</Label>
-                <Input
-                  id="adherence"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={form.adherence}
-                  onChange={(e) => handleChange("adherence", e.target.value)}
                 />
               </div>
               <div className="space-y-1">
@@ -349,17 +354,11 @@ const Medicines = () => {
                         <Badge variant="secondary" className="bg-health-green/15 text-health-green">Active</Badge>
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{med.frequency}</span>
                         <span>{med.duration}</span>
                         <span>{med.doctor}</span>
                       </div>
                       <div className="mt-3">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">Adherence</span>
-                          <span className="font-semibold">{med.adherence}%</span>
-                        </div>
-                        <Progress value={med.adherence} className="h-2" />
-                        <div className="mt-3 flex flex-col gap-2">
+                        <div className="mt-1 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground">
                               Upload prescription
@@ -413,7 +412,7 @@ const Medicines = () => {
                 </div>
                 <div>
                   <p className="font-semibold text-sm">{med.name} {med.dosage}</p>
-                  <p className="text-xs text-muted-foreground">{med.frequency} · {med.doctor}</p>
+                  <p className="text-xs text-muted-foreground">{med.duration} · {med.doctor}</p>
                 </div>
                 <Badge variant="secondary" className="ml-auto">Completed</Badge>
               </CardContent>
