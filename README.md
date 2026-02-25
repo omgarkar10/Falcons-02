@@ -1,3 +1,53 @@
+# Here is How to Run the Project
+### PowerShell‑only commands (no Git Bash)
+
+#### 1) One‑time backend setup
+
+In **PowerShell**:
+
+```powershell
+cd C:\Users\niket\Documents\GitHub\Falcons-02\backend
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+pip install -r .\requirements.txt
+```
+
+You only need to create the `.venv` and run `pip install` once (or when dependencies change).
+
+---
+
+#### 2) Every time you start the project
+
+Open **two PowerShell windows**.
+
+- **Window 1 – Backend API**
+
+```powershell
+cd C:\Users\niket\Documents\GitHub\Falcons-02\backend
+.\.venv\Scripts\Activate.ps1
+python .\app.py
+```
+
+Leave this window running. Backend will be at `http://localhost:5000`.
+
+- **Window 2 – Frontend (Vite + React)**
+
+```powershell
+cd C:\Users\niket\Documents\GitHub\Falcons-02
+npm run dev
+```
+
+Then open the URL Vite prints (usually `http://localhost:5173`) in your browser.
+
+---
+
+#### 3) Stopping things
+
+- To stop backend or frontend: press `Ctrl + C` in that PowerShell window.
+- To leave the virtualenv: type `deactivate` in the backend PowerShell window.
+
 # 🏥 HealthHub — AI-Powered Health Management Platform
 
 A bold, colorful, and interactive health management dashboard with AI-powered insights using Gemini. Built for both patients and doctors.
