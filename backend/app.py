@@ -12,6 +12,7 @@ from flask import (
 )
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from sqlalchemy import or_
 
 from db import (
     init_app as init_db_app,
@@ -192,7 +193,7 @@ def list_reports():
     if q:
         like = f"%{q}%"
         query = query.filter(
-            db.or_(
+            or_(
                 Report.name.ilike(like),
                 Report.type.ilike(like),
                 Report.doctor.ilike(like),

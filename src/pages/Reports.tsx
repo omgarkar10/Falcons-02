@@ -4,6 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FileText, Upload, Search, Calendar, User, Sparkles } from "lucide-react";
 
 type Report = {
@@ -29,6 +38,23 @@ const Reports = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyMessage, setBusyMessage] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSummarizeOpen, setIsSummarizeOpen] = useState(false);
+  const [newReport, setNewReport] = useState<{
+    name: string;
+    type: string;
+    doctor: string;
+    date: string;
+    summary: string;
+  }>({
+    name: "",
+    type: "Blood Test",
+    doctor: "",
+    date: new Date().toISOString().slice(0, 10),
+    summary: "",
+  });
+  const [summarizeReportId, setSummarizeReportId] = useState<number | null>(null);
+  const [summarizeText, setSummarizeText] = useState("");
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -63,16 +89,15 @@ const Reports = () => {
   });
 
   const handleUploadReport = async () => {
-    const name = window.prompt("Report name");
-    if (!name) return;
+    if (!newReport.name.trim()) {
+      window.alert("Please enter a report name.");
+      return;
+    }
 
-    const type = window.prompt("Report type (e.g. Blood Test, Imaging)") || "Other";
-    const doctor = window.prompt("Doctor name") || "Unknown";
-    const date =
-      window.prompt("Report date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) ||
-      new Date().toISOString().slice(0, 10);
-
-    const summary = window.prompt("Optional summary (you can also use AI later)") || undefined;
+    if (!newReport.doctor.trim()) {
+      window.alert("Please enter a doctor name.");
+      return;
+    }
 
     try {
       setBusyMessage("Uploading report...");
@@ -81,7 +106,13 @@ const Reports = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, type, doctor, date, summary }),
+        body: JSON.stringify({
+          name: newReport.name,
+          type: newReport.type || "Other",
+          doctor: newReport.doctor,
+          date: newReport.date,
+          summary: newReport.summary || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -90,6 +121,14 @@ const Reports = () => {
 
       const created: Report = await res.json();
       setReports((prev) => [...prev, created].sort((a, b) => b.date.localeCompare(a.date)));
+      setIsCreateOpen(false);
+      setNewReport({
+        name: "",
+        type: "Blood Test",
+        doctor: "",
+        date: new Date().toISOString().slice(0, 10),
+        summary: "",
+      });
     } catch (err) {
       console.error(err);
       window.alert("Failed to upload report. Please try again.");
@@ -99,35 +138,24 @@ const Reports = () => {
   };
 
   const handleSummarize = async () => {
-    if (!reports.length) {
+    if (!reports.length || summarizeReportId == null) {
       window.alert("No reports available. Please create a report first.");
       return;
     }
 
-    const defaultId = String(reports[0].id);
-    const idInput = window.prompt(
-      `Enter the ID of the report to summarize (e.g. ${defaultId})`,
-      defaultId
-    );
-    if (!idInput) return;
-
-    const id = Number(idInput);
-    if (!Number.isFinite(id)) {
-      window.alert("Invalid report ID.");
+    if (!summarizeText.trim()) {
+      window.alert("Please paste the report text to summarize.");
       return;
     }
 
-    const text = window.prompt("Paste the raw report text that you want summarized:");
-    if (!text || !text.trim()) return;
-
     try {
       setBusyMessage("Generating AI summary...");
-      const res = await fetch(`${API_BASE_URL}/api/reports/${id}/summarize`, {
+      const res = await fetch(`${API_BASE_URL}/api/reports/${summarizeReportId}/summarize`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text, save: true }),
+        body: JSON.stringify({ text: summarizeText, save: true }),
       });
 
       if (!res.ok) {
@@ -136,8 +164,10 @@ const Reports = () => {
 
       const data: { summary: string } = await res.json();
       setReports((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, summary: data.summary } : r))
+        prev.map((r) => (r.id === summarizeReportId ? { ...r, summary: data.summary } : r))
       );
+      setIsSummarizeOpen(false);
+      setSummarizeText("");
     } catch (err) {
       console.error(err);
       window.alert("Failed to generate summary. Please try again.");
@@ -166,7 +196,7 @@ const Reports = () => {
         </div>
         <Button
           className="gradient-primary border-0 text-primary-foreground gap-2"
-          onClick={handleUploadReport}
+          onClick={() => setIsCreateOpen(true)}
           disabled={!!busyMessage}
         >
           <Upload className="w-4 h-4" /> Upload Report
@@ -188,7 +218,12 @@ const Reports = () => {
               variant="outline"
               size="sm"
               className="shrink-0"
-              onClick={handleSummarize}
+              onClick={() => {
+                if (reports.length && summarizeReportId == null) {
+                  setSummarizeReportId(reports[0].id);
+                }
+                setIsSummarizeOpen(true);
+              }}
               disabled={!!busyMessage}
             >
               Try it
@@ -204,6 +239,117 @@ const Reports = () => {
       {error && (
         <p className="text-xs text-destructive">{error}</p>
       )}
+
+      {/* Create Report Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload report</DialogTitle>
+            <DialogDescription>
+              Add a new medical report. You can generate an AI summary later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Report name</label>
+              <Input
+                value={newReport.name}
+                onChange={(e) => setNewReport((r) => ({ ...r, name: e.target.value }))}
+                placeholder="e.g. Complete Blood Count"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Type</label>
+              <Input
+                value={newReport.type}
+                onChange={(e) => setNewReport((r) => ({ ...r, type: e.target.value }))}
+                placeholder="e.g. Blood Test, Imaging"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Doctor</label>
+              <Input
+                value={newReport.doctor}
+                onChange={(e) => setNewReport((r) => ({ ...r, doctor: e.target.value }))}
+                placeholder="e.g. Dr. Smith"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Date</label>
+              <Input
+                type="date"
+                value={newReport.date}
+                onChange={(e) => setNewReport((r) => ({ ...r, date: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Optional notes / summary</label>
+              <Textarea
+                value={newReport.summary}
+                onChange={(e) => setNewReport((r) => ({ ...r, summary: e.target.value }))}
+                placeholder="Short description of this report"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUploadReport} disabled={!!busyMessage}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Summarize Dialog */}
+      <Dialog open={isSummarizeOpen} onOpenChange={setIsSummarizeOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>AI Report Summarizer</DialogTitle>
+            <DialogDescription>
+              Choose a report and paste the raw text you want summarized into plain language.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Report</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={summarizeReportId ?? ""}
+                onChange={(e) =>
+                  setSummarizeReportId(e.target.value ? Number(e.target.value) : null)
+                }
+              >
+                <option value="">Select a report</option>
+                {reports.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} — {r.date}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Report text</label>
+              <Textarea
+                value={summarizeText}
+                onChange={(e) => setSummarizeText(e.target.value)}
+                placeholder="Paste the original report text here..."
+                rows={6}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSummarizeOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSummarize} disabled={!!busyMessage}>
+              Generate summary
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reports List */}
       <div className="space-y-3">
