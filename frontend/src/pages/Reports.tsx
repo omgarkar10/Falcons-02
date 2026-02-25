@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Upload, Search, Calendar, User, Sparkles } from "lucide-react";
 
 type Report = {
-  id: number;
+  id: string;
   name: string;
   type: string;
   doctor: string;
@@ -16,11 +16,11 @@ type Report = {
 };
 
 const mockReports: Report[] = [
-  { id: 1, name: "Complete Blood Count", type: "Blood Test", doctor: "Dr. Smith", date: "2026-02-20", summary: "All values within normal range." },
-  { id: 2, name: "Chest X-Ray", type: "Imaging", doctor: "Dr. Patel", date: "2026-02-15" },
-  { id: 3, name: "Lipid Panel", type: "Blood Test", doctor: "Dr. Johnson", date: "2026-02-10", summary: "Slightly elevated LDL cholesterol." },
-  { id: 4, name: "Thyroid Function Test", type: "Blood Test", doctor: "Dr. Lee", date: "2026-01-28" },
-  { id: 5, name: "ECG Report", type: "Cardiology", doctor: "Dr. Williams", date: "2026-01-20", summary: "Normal sinus rhythm." },
+  { id: "1", name: "Complete Blood Count", type: "Blood Test", doctor: "Dr. Smith", date: "2026-02-20", summary: "All values within normal range." },
+  { id: "2", name: "Chest X-Ray", type: "Imaging", doctor: "Dr. Patel", date: "2026-02-15" },
+  { id: "3", name: "Lipid Panel", type: "Blood Test", doctor: "Dr. Johnson", date: "2026-02-10", summary: "Slightly elevated LDL cholesterol." },
+  { id: "4", name: "Thyroid Function Test", type: "Blood Test", doctor: "Dr. Lee", date: "2026-01-28" },
+  { id: "5", name: "ECG Report", type: "Cardiology", doctor: "Dr. Williams", date: "2026-01-20", summary: "Normal sinus rhythm." },
 ];
 
 const typeColors: Record<string, string> = {

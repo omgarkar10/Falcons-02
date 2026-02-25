@@ -17,7 +17,7 @@ import {
 import { Pill, Plus, Clock, AlertCircle, Sparkles, CheckCircle2 } from "lucide-react";
 
 type Medicine = {
-  id: number;
+  id: string;
   name: string;
   dosage: string;
   frequency: string;
@@ -32,8 +32,8 @@ type Medicine = {
 };
 
 type Prescription = {
-  id: number;
-  medicineId: number;
+  id: string;
+  medicineId: string;
   originalFilename: string;
   contentType?: string;
   uploadedAt: string;
@@ -157,7 +157,7 @@ const Medicines = () => {
   };
 
   const handleUploadPrescription = async (
-    medicineId: number,
+    medicineId: string,
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];

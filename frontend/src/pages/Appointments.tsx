@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Plus, MapPin, Clock, User, Stethoscope } from "lucide-react";
 
 type Appointment = {
-  id: number;
+  id: string;
   doctor: string;
   specialty: string;
   date: string;
@@ -17,11 +17,11 @@ type Appointment = {
 };
 
 const mockAppointments: Appointment[] = [
-  { id: 1, doctor: "Dr. Sarah Smith", specialty: "General Physician", date: "2026-02-26", time: "10:00 AM", location: "City Medical Center", status: "upcoming", notes: "Annual checkup" },
-  { id: 2, doctor: "Dr. Raj Patel", specialty: "Cardiologist", date: "2026-03-02", time: "2:30 PM", location: "Heart Care Clinic", status: "upcoming" },
-  { id: 3, doctor: "Dr. Emily Johnson", specialty: "Endocrinologist", date: "2026-03-10", time: "11:00 AM", location: "Metro Hospital", status: "upcoming", notes: "Thyroid follow-up" },
-  { id: 4, doctor: "Dr. Michael Lee", specialty: "Dermatologist", date: "2026-02-18", time: "3:00 PM", location: "Skin Health Clinic", status: "completed" },
-  { id: 5, doctor: "Dr. Lisa Williams", specialty: "Orthopedist", date: "2026-02-10", time: "9:00 AM", location: "Bone & Joint Center", status: "cancelled" },
+  { id: "1", doctor: "Dr. Sarah Smith", specialty: "General Physician", date: "2026-02-26", time: "10:00 AM", location: "City Medical Center", status: "upcoming", notes: "Annual checkup" },
+  { id: "2", doctor: "Dr. Raj Patel", specialty: "Cardiologist", date: "2026-03-02", time: "2:30 PM", location: "Heart Care Clinic", status: "upcoming" },
+  { id: "3", doctor: "Dr. Emily Johnson", specialty: "Endocrinologist", date: "2026-03-10", time: "11:00 AM", location: "Metro Hospital", status: "upcoming", notes: "Thyroid follow-up" },
+  { id: "4", doctor: "Dr. Michael Lee", specialty: "Dermatologist", date: "2026-02-18", time: "3:00 PM", location: "Skin Health Clinic", status: "completed" },
+  { id: "5", doctor: "Dr. Lisa Williams", specialty: "Orthopedist", date: "2026-02-10", time: "9:00 AM", location: "Bone & Joint Center", status: "cancelled" },
 ];
 
 const statusConfig: Record<string, { bg: string; text: string }> = {
