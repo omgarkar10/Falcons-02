@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,7 @@ type Report = {
   summary?: string;
 };
 
-const mockReports: Report[] = [
-  { id: 1, name: "Complete Blood Count", type: "Blood Test", doctor: "Dr. Smith", date: "2026-02-20", summary: "All values within normal range." },
-  { id: 2, name: "Chest X-Ray", type: "Imaging", doctor: "Dr. Patel", date: "2026-02-15" },
-  { id: 3, name: "Lipid Panel", type: "Blood Test", doctor: "Dr. Johnson", date: "2026-02-10", summary: "Slightly elevated LDL cholesterol." },
-  { id: 4, name: "Thyroid Function Test", type: "Blood Test", doctor: "Dr. Lee", date: "2026-01-28" },
-  { id: 5, name: "ECG Report", type: "Cardiology", doctor: "Dr. Williams", date: "2026-01-20", summary: "Normal sinus rhythm." },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 const typeColors: Record<string, string> = {
   "Blood Test": "bg-health-teal/15 text-health-teal",
@@ -31,12 +25,126 @@ const typeColors: Record<string, string> = {
 
 const Reports = () => {
   const [search, setSearch] = useState("");
-  const filtered = mockReports.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.doctor.toLowerCase().includes(search.toLowerCase()) ||
-      r.type.toLowerCase().includes(search.toLowerCase())
-  );
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyMessage, setBusyMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`${API_BASE_URL}/api/reports`);
+        if (!res.ok) {
+          throw new Error("Failed to load reports");
+        }
+        const data: Report[] = await res.json();
+        setReports(data);
+      } catch (err) {
+        console.error(err);
+        setError("Unable to load reports. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReports();
+  }, []);
+
+  const filtered = reports.filter((r) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      r.name.toLowerCase().includes(q) ||
+      r.doctor.toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q)
+    );
+  });
+
+  const handleUploadReport = async () => {
+    const name = window.prompt("Report name");
+    if (!name) return;
+
+    const type = window.prompt("Report type (e.g. Blood Test, Imaging)") || "Other";
+    const doctor = window.prompt("Doctor name") || "Unknown";
+    const date =
+      window.prompt("Report date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) ||
+      new Date().toISOString().slice(0, 10);
+
+    const summary = window.prompt("Optional summary (you can also use AI later)") || undefined;
+
+    try {
+      setBusyMessage("Uploading report...");
+      const res = await fetch(`${API_BASE_URL}/api/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, type, doctor, date, summary }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create report");
+      }
+
+      const created: Report = await res.json();
+      setReports((prev) => [...prev, created].sort((a, b) => b.date.localeCompare(a.date)));
+    } catch (err) {
+      console.error(err);
+      window.alert("Failed to upload report. Please try again.");
+    } finally {
+      setBusyMessage(null);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!reports.length) {
+      window.alert("No reports available. Please create a report first.");
+      return;
+    }
+
+    const defaultId = String(reports[0].id);
+    const idInput = window.prompt(
+      `Enter the ID of the report to summarize (e.g. ${defaultId})`,
+      defaultId
+    );
+    if (!idInput) return;
+
+    const id = Number(idInput);
+    if (!Number.isFinite(id)) {
+      window.alert("Invalid report ID.");
+      return;
+    }
+
+    const text = window.prompt("Paste the raw report text that you want summarized:");
+    if (!text || !text.trim()) return;
+
+    try {
+      setBusyMessage("Generating AI summary...");
+      const res = await fetch(`${API_BASE_URL}/api/reports/${id}/summarize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text, save: true }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to summarize report");
+      }
+
+      const data: { summary: string } = await res.json();
+      setReports((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, summary: data.summary } : r))
+      );
+    } catch (err) {
+      console.error(err);
+      window.alert("Failed to generate summary. Please try again.");
+    } finally {
+      setBusyMessage(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -56,7 +164,11 @@ const Reports = () => {
             className="pl-10"
           />
         </div>
-        <Button className="gradient-primary border-0 text-primary-foreground gap-2">
+        <Button
+          className="gradient-primary border-0 text-primary-foreground gap-2"
+          onClick={handleUploadReport}
+          disabled={!!busyMessage}
+        >
           <Upload className="w-4 h-4" /> Upload Report
         </Button>
       </div>
@@ -72,10 +184,26 @@ const Reports = () => {
               <p className="font-semibold">AI Report Summarizer</p>
               <p className="text-sm text-muted-foreground">Upload any medical report and get an instant plain-language summary</p>
             </div>
-            <Button variant="outline" size="sm" className="shrink-0">Try it</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={handleSummarize}
+              disabled={!!busyMessage}
+            >
+              Try it
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
+
+      {busyMessage && (
+        <p className="text-xs text-muted-foreground">{busyMessage}</p>
+      )}
+
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
 
       {/* Reports List */}
       <div className="space-y-3">

@@ -160,10 +160,134 @@ def download_prescription_file(prescription_id: int):
     )
 
 
+def _simple_summarize(text: str, max_sentences: int = 3, max_chars: int = 280) -> str:
+    """Very lightweight extractive 'summary' without external dependencies."""
+    if not text:
+        return ""
+
+    # Split on sentence boundaries in a naive way.
+    import re
+
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", text)
+        if s.strip()
+    ]
+    if not sentences:
+        return text[:max_chars]
+
+    summary_sentences = sentences[:max_sentences]
+    summary = " ".join(summary_sentences)
+    if len(summary) > max_chars:
+        summary = summary[: max_chars - 1].rstrip() + "…"
+    return summary
+
+
 @app.route("/api/reports", methods=["GET"])
 def list_reports():
-    reports = Report.query.order_by(Report.date.desc()).all()
+    """List reports, optionally filtered by a free-text search query."""
+    q = (request.args.get("q") or "").strip()
+
+    query = Report.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                Report.name.ilike(like),
+                Report.type.ilike(like),
+                Report.doctor.ilike(like),
+                Report.summary.ilike(like),
+            )
+        )
+
+    reports = query.order_by(Report.date.desc()).all()
     return jsonify([r.to_dict() for r in reports]), 200
+
+
+@app.route("/api/reports", methods=["POST"])
+def create_report():
+    """Create a new medical report (metadata-only, no file storage)."""
+    data = request.get_json(silent=True) or {}
+
+    required_fields = ["name", "type", "doctor", "date"]
+    missing = [f for f in required_fields if not data.get(f)]
+    if missing:
+        return (
+            jsonify({"error": f"Missing required fields: {', '.join(missing)}"}),
+            400,
+        )
+
+    report = Report(
+        name=data["name"],
+        type=data["type"],
+        doctor=data["doctor"],
+        date=data["date"],
+        summary=data.get("summary"),
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify(report.to_dict()), 201
+
+
+@app.route("/api/reports/<int:report_id>", methods=["GET"])
+def get_report(report_id: int):
+    """Fetch a single report by ID."""
+    report = Report.query.get_or_404(report_id)
+    return jsonify(report.to_dict()), 200
+
+
+@app.route("/api/reports/<int:report_id>", methods=["PUT", "PATCH"])
+def update_report(report_id: int):
+    """Update report fields such as summary, name, type, etc."""
+    report = Report.query.get_or_404(report_id)
+    data = request.get_json(silent=True) or {}
+
+    for field in ["name", "type", "doctor", "date", "summary"]:
+        if field in data and data[field] is not None:
+            setattr(report, field, data[field])
+
+    db.session.commit()
+    return jsonify(report.to_dict()), 200
+
+
+@app.route("/api/reports/<int:report_id>", methods=["DELETE"])
+def delete_report(report_id: int):
+    """Delete a report."""
+    report = Report.query.get_or_404(report_id)
+    db.session.delete(report)
+    db.session.commit()
+    return jsonify({"success": True}), 200
+
+
+@app.route("/api/reports/<int:report_id>/summarize", methods=["POST"])
+def summarize_report(report_id: int):
+    """Generate or update a plain-language summary for a report.
+
+    The frontend should send JSON like:
+      { "text": "<raw report text>", "save": true }
+    If `save` is true, the generated summary is persisted on the Report row.
+    """
+    report = Report.query.get_or_404(report_id)
+    data = request.get_json(silent=True) or {}
+
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Field 'text' is required for summarization."}), 400
+
+    summary = _simple_summarize(text)
+
+    if data.get("save"):
+        report.summary = summary
+        db.session.commit()
+
+    return jsonify(
+        {
+            "id": report.id,
+            "summary": summary,
+            "saved": bool(data.get("save")),
+        }
+    ), 200
 
 
 @app.route("/api/appointments", methods=["GET"])
