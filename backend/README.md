@@ -11,7 +11,7 @@ python -m venv venv
 2. Activate the virtual environment:
 - Windows:
 ```bash
-C
+venv\Scripts\activate
 ```
 - macOS/Linux:
 ```bash
@@ -29,3 +29,9 @@ python app.py
 ```
 
 The server will start at http://localhost:5000
+
+
+
+Change 01
+Change 02
+
