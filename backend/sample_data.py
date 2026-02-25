@@ -10,31 +10,34 @@ def load_sample_data(db):
     if not Medicine.query.first():
         meds = [
             Medicine(
-                name="Amoxicillin",
+                name="Medicine A",
                 dosage="500mg",
                 frequency="3x daily",
                 duration="7 days",
                 doctor="Dr. Smith",
                 adherence=85,
                 active=True,
+                time_of_day="morning",
             ),
             Medicine(
-                name="Metformin",
+                name="Medicine B",
                 dosage="850mg",
                 frequency="2x daily",
                 duration="30 days",
                 doctor="Dr. Patel",
                 adherence=92,
                 active=True,
+                time_of_day="afternoon",
             ),
             Medicine(
-                name="Lisinopril",
+                name="Medicine C",
                 dosage="10mg",
                 frequency="1x daily",
                 duration="90 days",
                 doctor="Dr. Johnson",
                 adherence=75,
                 active=False,
+                time_of_day="evening",
             ),
         ]
         db.session.add_all(meds)

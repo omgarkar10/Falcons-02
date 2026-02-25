@@ -7,6 +7,13 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -25,6 +32,7 @@ type Medicine = {
   doctor: string;
   adherence: number;
   active: boolean;
+  timeOfDay?: "morning" | "afternoon" | "evening" | "unscheduled";
   createdAt?: string;
   prescriptions?: Prescription[];
 };
@@ -40,18 +48,13 @@ type Prescription = {
 
 const API_BASE_URL = "http://localhost:5000";
 
-const pillSchedule = [
-  { time: "8:00 AM", meds: ["Amoxicillin 500mg", "Metformin 850mg", "Lisinopril 10mg"], taken: [true, true, true] },
-  { time: "2:00 PM", meds: ["Amoxicillin 500mg"], taken: [true] },
-  { time: "8:00 PM", meds: ["Amoxicillin 500mg", "Metformin 850mg"], taken: [false, false] },
-];
-
 const Medicines = () => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     name: "",
     dosage: "",
@@ -59,6 +62,7 @@ const Medicines = () => {
     duration: "",
     doctor: "",
     adherence: 0,
+    timeOfDay: "unscheduled" as "morning" | "afternoon" | "evening" | "unscheduled",
   });
 
   const fetchMedicines = async () => {
@@ -72,7 +76,12 @@ const Medicines = () => {
       const data: Medicine[] = await res.json();
       setMedicines(data);
     } catch (err) {
-      setError((err as Error).message || "Something went wrong");
+      const message = (err as Error).message;
+      if (message && message.includes("Failed to fetch")) {
+        setError("Could not connect to the backend. Please make sure the backend server is running.");
+      } else {
+        setError(message || "Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
@@ -109,6 +118,22 @@ const Medicines = () => {
         throw new Error(data?.error || "Failed to add medicine");
       }
 
+      const created: Medicine = await res.json();
+
+      if (prescriptionFile) {
+        const formData = new FormData();
+        formData.append("file", prescriptionFile);
+        await fetch(
+          `${API_BASE_URL}/api/medicines/${created.id}/prescriptions`,
+          {
+            method: "POST",
+            body: formData,
+          },
+        ).catch(() => {
+          // Ignore upload errors here; they can retry from the card upload control.
+        });
+      }
+
       setForm({
         name: "",
         dosage: "",
@@ -116,7 +141,9 @@ const Medicines = () => {
         duration: "",
         doctor: "",
         adherence: 0,
+        timeOfDay: "unscheduled",
       });
+      setPrescriptionFile(null);
       setIsAddOpen(false);
       await fetchMedicines();
     } catch (err) {
@@ -158,6 +185,10 @@ const Medicines = () => {
 
   const activeMedicines = medicines.filter((m) => m.active);
   const pastMedicines = medicines.filter((m) => !m.active);
+
+  const morningMeds = activeMedicines.filter((m) => m.timeOfDay === "morning");
+  const afternoonMeds = activeMedicines.filter((m) => m.timeOfDay === "afternoon");
+  const eveningMeds = activeMedicines.filter((m) => m.timeOfDay === "evening");
 
   return (
     <div className="space-y-6">
@@ -221,6 +252,28 @@ const Medicines = () => {
                 />
               </div>
               <div className="space-y-1">
+                <Label htmlFor="timeOfDay">Time of day</Label>
+                <Select
+                  value={form.timeOfDay}
+                  onValueChange={(value) =>
+                    handleChange(
+                      "timeOfDay",
+                      value as "morning" | "afternoon" | "evening" | "unscheduled",
+                    )
+                  }
+                >
+                  <SelectTrigger id="timeOfDay">
+                    <SelectValue placeholder="Select time of day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unscheduled">Unscheduled</SelectItem>
+                    <SelectItem value="morning">Morning</SelectItem>
+                    <SelectItem value="afternoon">Afternoon</SelectItem>
+                    <SelectItem value="evening">Evening</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <Label htmlFor="doctor">Prescribing Doctor</Label>
                 <Input
                   id="doctor"
@@ -238,6 +291,17 @@ const Medicines = () => {
                   max={100}
                   value={form.adherence}
                   onChange={(e) => handleChange("adherence", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="prescription">Prescription (optional)</Label>
+                <Input
+                  id="prescription"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) =>
+                    setPrescriptionFile(e.target.files?.[0] ?? null)
+                  }
                 />
               </div>
             </div>
@@ -367,21 +431,85 @@ const Medicines = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {pillSchedule.map((slot, i) => (
-                <div key={i} className="space-y-2">
-                  <p className="text-sm font-semibold text-primary">{slot.time}</p>
-                  {slot.meds.map((med, j) => (
-                    <div key={j} className="flex items-center gap-2 text-sm pl-3">
-                      {slot.taken[j] ? (
-                        <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-health-coral shrink-0" />
-                      )}
-                      <span className={slot.taken[j] ? "line-through text-muted-foreground" : ""}>{med}</span>
-                    </div>
-                  ))}
+              {activeMedicines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No medicines scheduled for today yet.
+                </p>
+              ) : (
+                <div className="space-y-4 text-sm">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Morning</p>
+                    {morningMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No morning medicines.
+                      </p>
+                    ) : (
+                      morningMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Afternoon</p>
+                    {afternoonMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No afternoon medicines.
+                      </p>
+                    ) : (
+                      afternoonMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Evening</p>
+                    {eveningMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No evening medicines.
+                      </p>
+                    ) : (
+                      eveningMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </motion.div>

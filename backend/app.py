@@ -65,6 +65,10 @@ def create_medicine():
     except (TypeError, ValueError):
         adherence = 0
 
+    time_of_day = (data.get("timeOfDay") or "unscheduled").lower()
+    if time_of_day not in {"morning", "afternoon", "evening", "unscheduled"}:
+        time_of_day = "unscheduled"
+
     medicine = Medicine(
         name=data["name"],
         dosage=data["dosage"],
@@ -73,6 +77,7 @@ def create_medicine():
         doctor=data["doctor"],
         adherence=max(0, min(100, adherence)),
         active=bool(data.get("active", True)),
+        time_of_day=time_of_day,
     )
     db.session.add(medicine)
     db.session.commit()
@@ -97,6 +102,11 @@ def update_medicine(medicine_id: int):
 
     if "active" in data:
         medicine.active = bool(data["active"])
+
+    if "timeOfDay" in data:
+        time_of_day = (data.get("timeOfDay") or "unscheduled").lower()
+        if time_of_day in {"morning", "afternoon", "evening", "unscheduled"}:
+            medicine.time_of_day = time_of_day
 
     db.session.commit()
     return jsonify(medicine.to_dict(include_prescriptions=True)), 200
