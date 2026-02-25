@@ -51,7 +51,8 @@ def list_medicines():
 def create_medicine():
     data = request.get_json(silent=True) or {}
 
-    required_fields = ["name", "dosage", "frequency", "duration", "doctor"]
+    # Frequency and adherence are now optional from the client.
+    required_fields = ["name", "dosage", "duration", "doctor"]
     missing = [f for f in required_fields if not data.get(f)]
     if missing:
         return (
@@ -65,14 +66,35 @@ def create_medicine():
     except (TypeError, ValueError):
         adherence = 0
 
-    time_of_day = (data.get("timeOfDay") or "unscheduled").lower()
-    if time_of_day not in {"morning", "afternoon", "evening", "unscheduled"}:
-        time_of_day = "unscheduled"
+    # Default frequency if not provided by client.
+    frequency = data.get("frequency") or "As prescribed"
+
+    # Allow multiple time-of-day slots via timeOfDaySlots (array).
+    slots = data.get("timeOfDaySlots") or []
+    if isinstance(slots, list):
+        valid = {"morning", "afternoon", "evening"}
+        cleaned = []
+        for s in slots:
+            if isinstance(s, str):
+                v = s.strip().lower()
+                if v in valid and v not in cleaned:
+                    cleaned.append(v)
+        slots = cleaned
+    else:
+        slots = []
+
+    # Backwards compatibility: accept single timeOfDay string.
+    if not slots and data.get("timeOfDay"):
+        single = str(data["timeOfDay"]).strip().lower()
+        if single in {"morning", "afternoon", "evening"}:
+            slots = [single]
+
+    time_of_day = ",".join(slots) if slots else "unscheduled"
 
     medicine = Medicine(
         name=data["name"],
         dosage=data["dosage"],
-        frequency=data["frequency"],
+        frequency=frequency,
         duration=data["duration"],
         doctor=data["doctor"],
         adherence=max(0, min(100, adherence)),
@@ -103,10 +125,27 @@ def update_medicine(medicine_id: int):
     if "active" in data:
         medicine.active = bool(data["active"])
 
-    if "timeOfDay" in data:
-        time_of_day = (data.get("timeOfDay") or "unscheduled").lower()
-        if time_of_day in {"morning", "afternoon", "evening", "unscheduled"}:
-            medicine.time_of_day = time_of_day
+    # Update time_of_day from multi-slot input if provided.
+    if "timeOfDaySlots" in data or "timeOfDay" in data:
+        slots = data.get("timeOfDaySlots") or []
+        if isinstance(slots, list):
+            valid = {"morning", "afternoon", "evening"}
+            cleaned = []
+            for s in slots:
+                if isinstance(s, str):
+                    v = s.strip().lower()
+                    if v in valid and v not in cleaned:
+                        cleaned.append(v)
+            slots = cleaned
+        else:
+            slots = []
+
+        if not slots and data.get("timeOfDay"):
+            single = str(data["timeOfDay"]).strip().lower()
+            if single in {"morning", "afternoon", "evening"}:
+                slots = [single]
+
+        medicine.time_of_day = ",".join(slots) if slots else "unscheduled"
 
     db.session.commit()
     return jsonify(medicine.to_dict(include_prescriptions=True)), 200
