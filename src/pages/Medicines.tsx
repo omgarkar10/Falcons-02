@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Pill, Plus, Clock, AlertCircle, Sparkles, CheckCircle2 } from "lucide-react";
 
 type Medicine = {
@@ -15,14 +25,20 @@ type Medicine = {
   doctor: string;
   adherence: number;
   active: boolean;
+  createdAt?: string;
+  prescriptions?: Prescription[];
 };
 
-const mockMedicines: Medicine[] = [
-  { id: 1, name: "Amoxicillin", dosage: "500mg", frequency: "3x daily", duration: "7 days", doctor: "Dr. Smith", adherence: 85, active: true },
-  { id: 2, name: "Metformin", dosage: "850mg", frequency: "2x daily", duration: "Ongoing", doctor: "Dr. Patel", adherence: 92, active: true },
-  { id: 3, name: "Lisinopril", dosage: "10mg", frequency: "1x daily", duration: "Ongoing", doctor: "Dr. Johnson", adherence: 100, active: true },
-  { id: 4, name: "Ibuprofen", dosage: "400mg", frequency: "As needed", duration: "5 days", doctor: "Dr. Lee", adherence: 60, active: false },
-];
+type Prescription = {
+  id: number;
+  medicineId: number;
+  originalFilename: string;
+  contentType?: string;
+  uploadedAt: string;
+  downloadUrl: string;
+};
+
+const API_BASE_URL = "http://localhost:5000";
 
 const pillSchedule = [
   { time: "8:00 AM", meds: ["Amoxicillin 500mg", "Metformin 850mg", "Lisinopril 10mg"], taken: [true, true, true] },
@@ -31,6 +47,118 @@ const pillSchedule = [
 ];
 
 const Medicines = () => {
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    dosage: "",
+    frequency: "",
+    duration: "",
+    doctor: "",
+    adherence: 0,
+  });
+
+  const fetchMedicines = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/api/medicines`);
+      if (!res.ok) {
+        throw new Error("Failed to load medicines");
+      }
+      const data: Medicine[] = await res.json();
+      setMedicines(data);
+    } catch (err) {
+      setError((err as Error).message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchMedicines();
+  }, []);
+
+  const handleChange = (field: keyof typeof form, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: field === "adherence" ? Number(value) || 0 : value,
+    }));
+  };
+
+  const handleAddMedicine = async () => {
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/api/medicines`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...form,
+          adherence: Math.max(0, Math.min(100, form.adherence)),
+          active: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to add medicine");
+      }
+
+      setForm({
+        name: "",
+        dosage: "",
+        frequency: "",
+        duration: "",
+        doctor: "",
+        adherence: 0,
+      });
+      setIsAddOpen(false);
+      await fetchMedicines();
+    } catch (err) {
+      setError((err as Error).message || "Failed to add medicine");
+    }
+  };
+
+  const handleUploadPrescription = async (
+    medicineId: number,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setError(null);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/medicines/${medicineId}/prescriptions`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to upload prescription");
+      }
+
+      event.target.value = "";
+      await fetchMedicines();
+    } catch (err) {
+      setError((err as Error).message || "Failed to upload prescription");
+    }
+  };
+
+  const activeMedicines = medicines.filter((m) => m.active);
+  const pastMedicines = medicines.filter((m) => !m.active);
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -38,10 +166,91 @@ const Medicines = () => {
         <p className="text-muted-foreground mt-1">Track your medications and adherence</p>
       </motion.div>
 
+      {error && (
+        <p className="text-sm text-red-500">
+          {error}
+        </p>
+      )}
+
       <div className="flex gap-3">
-        <Button className="gradient-primary border-0 text-primary-foreground gap-2">
-          <Plus className="w-4 h-4" /> Add Medicine
-        </Button>
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button className="gradient-primary border-0 text-primary-foreground gap-2">
+              <Plus className="w-4 h-4" /> Add Medicine
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Medicine</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="Amoxicillin"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="dosage">Dosage</Label>
+                <Input
+                  id="dosage"
+                  value={form.dosage}
+                  onChange={(e) => handleChange("dosage", e.target.value)}
+                  placeholder="500mg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="frequency">Frequency</Label>
+                <Input
+                  id="frequency"
+                  value={form.frequency}
+                  onChange={(e) => handleChange("frequency", e.target.value)}
+                  placeholder="3x daily"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="duration">Duration</Label>
+                <Input
+                  id="duration"
+                  value={form.duration}
+                  onChange={(e) => handleChange("duration", e.target.value)}
+                  placeholder="7 days"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="doctor">Prescribing Doctor</Label>
+                <Input
+                  id="doctor"
+                  value={form.doctor}
+                  onChange={(e) => handleChange("doctor", e.target.value)}
+                  placeholder="Dr. Smith"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="adherence">Adherence (%)</Label>
+                <Input
+                  id="adherence"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={form.adherence}
+                  onChange={(e) => handleChange("adherence", e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddMedicine} disabled={loading}>
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Button variant="outline" className="gap-2">
           <Sparkles className="w-4 h-4 text-secondary" /> AI Schedule Suggestions
         </Button>
@@ -51,7 +260,13 @@ const Medicines = () => {
         {/* Medicine List */}
         <div className="lg:col-span-2 space-y-3">
           <h2 className="font-display text-lg font-semibold">Active Medications</h2>
-          {mockMedicines.filter(m => m.active).map((med, i) => (
+          {loading && medicines.length === 0 && (
+            <p className="text-sm text-muted-foreground">Loading medicines...</p>
+          )}
+          {!loading && activeMedicines.length === 0 && (
+            <p className="text-sm text-muted-foreground">No active medicines yet.</p>
+          )}
+          {activeMedicines.map((med, i) => (
             <motion.div
               key={med.id}
               initial={{ opacity: 0, x: -10 }}
@@ -80,6 +295,40 @@ const Medicines = () => {
                           <span className="font-semibold">{med.adherence}%</span>
                         </div>
                         <Progress value={med.adherence} className="h-2" />
+                        <div className="mt-3 flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              Upload prescription
+                            </span>
+                            <Input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="max-w-[200px] cursor-pointer"
+                              onChange={(e) => void handleUploadPrescription(med.id, e)}
+                            />
+                          </div>
+                          {med.prescriptions && med.prescriptions.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-muted-foreground">
+                                Prescriptions
+                              </p>
+                              <ul className="space-y-0.5">
+                                {med.prescriptions.map((p) => (
+                                  <li key={p.id}>
+                                    <a
+                                      href={`${API_BASE_URL}${p.downloadUrl}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs text-primary underline"
+                                    >
+                                      {p.originalFilename}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -89,7 +338,10 @@ const Medicines = () => {
           ))}
 
           <h2 className="font-display text-lg font-semibold mt-6">Past Medications</h2>
-          {mockMedicines.filter(m => !m.active).map((med) => (
+          {!loading && pastMedicines.length === 0 && (
+            <p className="text-sm text-muted-foreground">No past medicines.</p>
+          )}
+          {pastMedicines.map((med) => (
             <Card key={med.id} className="opacity-60">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
