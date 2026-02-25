@@ -11,8 +11,17 @@ from flask import (
     send_from_directory,
 )
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+
+from db import (
+    init_app as init_db_app,
+    init_db as create_all_tables,
+    db,
+    Medicine,
+    Prescription,
+    Report,
+    Appointment,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_FOLDER = BASE_DIR / "uploads"
@@ -20,74 +29,11 @@ UPLOAD_FOLDER.mkdir(exist_ok=True)
 
 app = Flask(__name__)
 
-# Basic configuration
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'medicines.db'}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-db = SQLAlchemy(app)
-
-
-class Medicine(db.Model):
-    __tablename__ = "medicines"
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    dosage = db.Column(db.String(255), nullable=False)
-    frequency = db.Column(db.String(255), nullable=False)
-    duration = db.Column(db.String(255), nullable=False)
-    doctor = db.Column(db.String(255), nullable=False)
-    adherence = db.Column(db.Integer, nullable=False, default=0)
-    active = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    prescriptions = db.relationship(
-        "Prescription",
-        backref="medicine",
-        cascade="all, delete-orphan",
-        lazy=True,
-    )
-
-    def to_dict(self, include_prescriptions: bool = False) -> dict:
-        data = {
-            "id": self.id,
-            "name": self.name,
-            "dosage": self.dosage,
-            "frequency": self.frequency,
-            "duration": self.duration,
-            "doctor": self.doctor,
-            "adherence": self.adherence,
-            "active": self.active,
-            "createdAt": self.created_at.isoformat(),
-        }
-        if include_prescriptions:
-            data["prescriptions"] = [p.to_dict() for p in self.prescriptions]
-        return data
-
-
-class Prescription(db.Model):
-    __tablename__ = "prescriptions"
-
-    id = db.Column(db.Integer, primary_key=True)
-    medicine_id = db.Column(
-        db.Integer, db.ForeignKey("medicines.id", ondelete="CASCADE"), nullable=False
-    )
-    original_filename = db.Column(db.String(255), nullable=False)
-    stored_filename = db.Column(db.String(255), nullable=False)
-    content_type = db.Column(db.String(255), nullable=True)
-    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    def to_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "medicineId": self.medicine_id,
-            "originalFilename": self.original_filename,
-            "contentType": self.content_type,
-            "uploadedAt": self.uploaded_at.isoformat(),
-            "downloadUrl": f"/api/prescriptions/{self.id}/file",
-        }
+init_db_app(app)
 
 
 @app.route("/")
@@ -214,10 +160,22 @@ def download_prescription_file(prescription_id: int):
     )
 
 
+@app.route("/api/reports", methods=["GET"])
+def list_reports():
+    reports = Report.query.order_by(Report.date.desc()).all()
+    return jsonify([r.to_dict() for r in reports]), 200
+
+
+@app.route("/api/appointments", methods=["GET"])
+def list_appointments():
+    appointments = Appointment.query.order_by(Appointment.date.desc()).all()
+    return jsonify([a.to_dict() for a in appointments]), 200
+
+
 def init_db():
-    """Create database tables if they don't exist."""
+    """Create database tables if they don't exist and load sample data."""
     with app.app_context():
-        db.create_all()
+        create_all_tables(with_sample_data=True)
 
 
 if __name__ == "__main__":
