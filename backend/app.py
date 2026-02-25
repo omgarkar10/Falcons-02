@@ -210,7 +210,8 @@ def create_report():
     """Create a new medical report (metadata-only, no file storage)."""
     data = request.get_json(silent=True) or {}
 
-    required_fields = ["name", "type", "doctor", "date"]
+    # Be lenient on missing fields; default sensible values where possible.
+    required_fields = ["name"]
     missing = [f for f in required_fields if not data.get(f)]
     if missing:
         return (
@@ -218,11 +219,16 @@ def create_report():
             400,
         )
 
+    report_type = data.get("type") or "Other"
+    doctor = data.get("doctor") or "Unknown"
+    # Accept any date string; default to today's date if missing/empty.
+    date_str = (data.get("date") or "").strip() or datetime.utcnow().strftime("%Y-%m-%d")
+
     report = Report(
         name=data["name"],
-        type=data["type"],
-        doctor=data["doctor"],
-        date=data["date"],
+        type=report_type,
+        doctor=doctor,
+        date=date_str,
         summary=data.get("summary"),
     )
     db.session.add(report)

@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect, text
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,6 +28,8 @@ class Medicine(db.Model):
     doctor = db.Column(db.String(255), nullable=False)
     adherence = db.Column(db.Integer, nullable=False, default=0)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    # morning / afternoon / evening / unscheduled
+    time_of_day = db.Column(db.String(50), nullable=False, default="unscheduled")
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     prescriptions = db.relationship(
@@ -37,6 +40,12 @@ class Medicine(db.Model):
     )
 
     def to_dict(self, include_prescriptions: bool = False) -> dict:
+        valid_slots = {"morning", "afternoon", "evening"}
+        slots: list[str] = []
+        if self.time_of_day:
+            parts = [p.strip().lower() for p in self.time_of_day.split(",") if p.strip()]
+            slots = [p for p in parts if p in valid_slots]
+
         data = {
             "id": self.id,
             "name": self.name,
@@ -46,6 +55,8 @@ class Medicine(db.Model):
             "doctor": self.doctor,
             "adherence": self.adherence,
             "active": self.active,
+            "timeOfDay": self.time_of_day,
+            "timeOfDaySlots": slots,
             "createdAt": self.created_at.isoformat(),
         }
         if include_prescriptions:
@@ -135,6 +146,17 @@ def init_db(with_sample_data: bool = False):
 
     with db.engine.begin() as conn:
         db.metadata.create_all(bind=conn)
+
+        # Simple schema migration: ensure time_of_day exists on medicines
+        inspector = inspect(conn)
+        columns = [c["name"] for c in inspector.get_columns("medicines")]
+        if "time_of_day" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE medicines "
+                    "ADD COLUMN time_of_day VARCHAR(50) NOT NULL DEFAULT 'unscheduled'"
+                )
+            )
 
     if with_sample_data:
         load_sample_data(db)

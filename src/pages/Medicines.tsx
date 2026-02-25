@@ -3,9 +3,9 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ type Medicine = {
   doctor: string;
   adherence: number;
   active: boolean;
+  timeOfDay?: "morning" | "afternoon" | "evening" | "unscheduled";
+  timeOfDaySlots?: ("morning" | "afternoon" | "evening")[];
   createdAt?: string;
   prescriptions?: Prescription[];
 };
@@ -40,25 +42,19 @@ type Prescription = {
 
 const API_BASE_URL = "http://localhost:5000";
 
-const pillSchedule = [
-  { time: "8:00 AM", meds: ["Amoxicillin 500mg", "Metformin 850mg", "Lisinopril 10mg"], taken: [true, true, true] },
-  { time: "2:00 PM", meds: ["Amoxicillin 500mg"], taken: [true] },
-  { time: "8:00 PM", meds: ["Amoxicillin 500mg", "Metformin 850mg"], taken: [false, false] },
-];
-
 const Medicines = () => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     name: "",
     dosage: "",
-    frequency: "",
     duration: "",
     doctor: "",
-    adherence: 0,
+    timeOfDaySlots: [] as ("morning" | "afternoon" | "evening")[],
   });
 
   const fetchMedicines = async () => {
@@ -72,7 +68,12 @@ const Medicines = () => {
       const data: Medicine[] = await res.json();
       setMedicines(data);
     } catch (err) {
-      setError((err as Error).message || "Something went wrong");
+      const message = (err as Error).message;
+      if (message && message.includes("Failed to fetch")) {
+        setError("Could not connect to the backend. Please make sure the backend server is running.");
+      } else {
+        setError(message || "Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
@@ -85,8 +86,20 @@ const Medicines = () => {
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({
       ...prev,
-      [field]: field === "adherence" ? Number(value) || 0 : value,
+      [field]: value,
     }));
+  };
+
+  const toggleTimeSlot = (slot: "morning" | "afternoon" | "evening") => {
+    setForm((prev) => {
+      const exists = prev.timeOfDaySlots.includes(slot);
+      return {
+        ...prev,
+        timeOfDaySlots: exists
+          ? prev.timeOfDaySlots.filter((s) => s !== slot)
+          : [...prev.timeOfDaySlots, slot],
+      };
+    });
   };
 
   const handleAddMedicine = async () => {
@@ -98,8 +111,11 @@ const Medicines = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...form,
-          adherence: Math.max(0, Math.min(100, form.adherence)),
+          name: form.name,
+          dosage: form.dosage,
+          duration: form.duration,
+          doctor: form.doctor,
+          timeOfDaySlots: form.timeOfDaySlots,
           active: true,
         }),
       });
@@ -109,14 +125,30 @@ const Medicines = () => {
         throw new Error(data?.error || "Failed to add medicine");
       }
 
+      const created: Medicine = await res.json();
+
+      if (prescriptionFile) {
+        const formData = new FormData();
+        formData.append("file", prescriptionFile);
+        await fetch(
+          `${API_BASE_URL}/api/medicines/${created.id}/prescriptions`,
+          {
+            method: "POST",
+            body: formData,
+          },
+        ).catch(() => {
+          // Ignore upload errors here; they can retry from the card upload control.
+        });
+      }
+
       setForm({
         name: "",
         dosage: "",
-        frequency: "",
         duration: "",
         doctor: "",
-        adherence: 0,
+        timeOfDaySlots: [],
       });
+      setPrescriptionFile(null);
       setIsAddOpen(false);
       await fetchMedicines();
     } catch (err) {
@@ -158,6 +190,26 @@ const Medicines = () => {
 
   const activeMedicines = medicines.filter((m) => m.active);
   const pastMedicines = medicines.filter((m) => !m.active);
+
+  const getSlotsForMed = (med: Medicine) => {
+    if (med.timeOfDaySlots && med.timeOfDaySlots.length > 0) {
+      return med.timeOfDaySlots;
+    }
+    if (med.timeOfDay && med.timeOfDay !== "unscheduled") {
+      return [med.timeOfDay];
+    }
+    return [];
+  };
+
+  const morningMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("morning"),
+  );
+  const afternoonMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("afternoon"),
+  );
+  const eveningMeds = activeMedicines.filter((m) =>
+    getSlotsForMed(m).includes("evening"),
+  );
 
   return (
     <div className="space-y-6">
@@ -203,15 +255,6 @@ const Medicines = () => {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="frequency">Frequency</Label>
-                <Input
-                  id="frequency"
-                  value={form.frequency}
-                  onChange={(e) => handleChange("frequency", e.target.value)}
-                  placeholder="3x daily"
-                />
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="duration">Duration</Label>
                 <Input
                   id="duration"
@@ -219,6 +262,32 @@ const Medicines = () => {
                   onChange={(e) => handleChange("duration", e.target.value)}
                   placeholder="7 days"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label>Time of day</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("morning")}
+                      onCheckedChange={() => toggleTimeSlot("morning")}
+                    />
+                    <span>Morning</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("afternoon")}
+                      onCheckedChange={() => toggleTimeSlot("afternoon")}
+                    />
+                    <span>Afternoon</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.timeOfDaySlots.includes("evening")}
+                      onCheckedChange={() => toggleTimeSlot("evening")}
+                    />
+                    <span>Evening</span>
+                  </label>
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="doctor">Prescribing Doctor</Label>
@@ -230,14 +299,14 @@ const Medicines = () => {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="adherence">Adherence (%)</Label>
+                <Label htmlFor="prescription">Prescription (optional)</Label>
                 <Input
-                  id="adherence"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={form.adherence}
-                  onChange={(e) => handleChange("adherence", e.target.value)}
+                  id="prescription"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) =>
+                    setPrescriptionFile(e.target.files?.[0] ?? null)
+                  }
                 />
               </div>
             </div>
@@ -285,17 +354,11 @@ const Medicines = () => {
                         <Badge variant="secondary" className="bg-health-green/15 text-health-green">Active</Badge>
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{med.frequency}</span>
                         <span>{med.duration}</span>
                         <span>{med.doctor}</span>
                       </div>
                       <div className="mt-3">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">Adherence</span>
-                          <span className="font-semibold">{med.adherence}%</span>
-                        </div>
-                        <Progress value={med.adherence} className="h-2" />
-                        <div className="mt-3 flex flex-col gap-2">
+                        <div className="mt-1 flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground">
                               Upload prescription
@@ -349,7 +412,7 @@ const Medicines = () => {
                 </div>
                 <div>
                   <p className="font-semibold text-sm">{med.name} {med.dosage}</p>
-                  <p className="text-xs text-muted-foreground">{med.frequency} · {med.doctor}</p>
+                  <p className="text-xs text-muted-foreground">{med.duration} · {med.doctor}</p>
                 </div>
                 <Badge variant="secondary" className="ml-auto">Completed</Badge>
               </CardContent>
@@ -367,21 +430,85 @@ const Medicines = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {pillSchedule.map((slot, i) => (
-                <div key={i} className="space-y-2">
-                  <p className="text-sm font-semibold text-primary">{slot.time}</p>
-                  {slot.meds.map((med, j) => (
-                    <div key={j} className="flex items-center gap-2 text-sm pl-3">
-                      {slot.taken[j] ? (
-                        <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-health-coral shrink-0" />
-                      )}
-                      <span className={slot.taken[j] ? "line-through text-muted-foreground" : ""}>{med}</span>
-                    </div>
-                  ))}
+              {activeMedicines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No medicines scheduled for today yet.
+                </p>
+              ) : (
+                <div className="space-y-4 text-sm">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Morning</p>
+                    {morningMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No morning medicines.
+                      </p>
+                    ) : (
+                      morningMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Afternoon</p>
+                    {afternoonMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No afternoon medicines.
+                      </p>
+                    ) : (
+                      afternoonMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary">Evening</p>
+                    {eveningMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground pl-4">
+                        No evening medicines.
+                      </p>
+                    ) : (
+                      eveningMeds.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-center gap-2 pl-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-health-green shrink-0" />
+                          <span>
+                            {med.name}{" "}
+                            <span className="text-muted-foreground text-xs">
+                              {med.dosage}
+                            </span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </motion.div>

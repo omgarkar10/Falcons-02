@@ -116,7 +116,11 @@ const Reports = () => {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to create report");
+        const errorBody = await res.json().catch(() => null);
+        const message =
+          (errorBody && (errorBody.error || errorBody.message)) ||
+          `Failed to create report (status ${res.status})`;
+        throw new Error(message);
       }
 
       const created: Report = await res.json();
@@ -129,9 +133,9 @@ const Reports = () => {
         date: new Date().toISOString().slice(0, 10),
         summary: "",
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      window.alert("Failed to upload report. Please try again.");
+      window.alert(err?.message || "Failed to upload report. Please try again.");
     } finally {
       setBusyMessage(null);
     }
